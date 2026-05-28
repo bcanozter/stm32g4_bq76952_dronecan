@@ -1,0 +1,10 @@
+#pragma once
+#include "uavcan.Timestamp.h"
+#include "uavcan.protocol.GetNodeInfo.h"
+#include "uavcan.protocol.HardwareVersion.h"
+#include "uavcan.protocol.NodeStatus.h"
+#include "uavcan.protocol.SoftwareVersion.h"
+#include "uavcan.protocol.debug.KeyValue.h"
+#include "uavcan.protocol.debug.LogLevel.h"
+#include "uavcan.protocol.debug.LogMessage.h"
+#include "uavcan.protocol.dynamic_node_id.Allocation.h"

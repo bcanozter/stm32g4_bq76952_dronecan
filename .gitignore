@@ -1,0 +1,10 @@
+.settings
+Debug/
+Release/
+.cproject
+.project
+.settings
+.vscode
+.idea
+.DS_Store
+*.launch

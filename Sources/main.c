@@ -23,6 +23,7 @@ int main(void) {
   MX_FDCAN2_Init();
 
   canard_app_init();
+  BQ76952_init();
 
   while (1) {
 

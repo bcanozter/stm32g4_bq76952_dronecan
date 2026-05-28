@@ -11,6 +11,7 @@ extern "C" {
 #define TI_BQ_I2C_ADDRESS (0x08 << 1)
 // Direct Commands
 #define CMD_ALARM_ENABLE 0x66
+#define CMD_BATTERY_STATUS 0x12
 
 // mV
 #define CMD_CELL1_VOLTAGE 0x14
@@ -50,26 +51,54 @@ extern "C" {
 #define SET_CFGUPDATE 0x0090
 #define EXIT_CFGUPDATE 0x0092
 #define FET_ENABLE 0x0022
+#define ALL_FETS_OFF 0x0095
+#define SLEEP_ENABLE 0x0099
 #define _RESET 0x0012
 //
 #define READ 0  // Read
 #define WRITE 1 // Write
 
+// https://www.ti.com/lit/ug/sluuby2b/sluuby2b.pdf
+// 12.2.16 Battery Status Register
+#define BIT_CFGUPDATE (1U << 0)
+#define BIT_PCHG_MODE (1U << 1)
+#define BIT_SLEEP_EN (1U << 2)
+#define BIT_POR (1U << 3)
+#define BIT_WD (1U << 4)
+#define BIT_COW_CHK (1U << 5)
+#define BIT_OTPW (1U << 6)
+#define BIT_OTPB (1U << 7)
+
+#define BIT_SEC0 (1U << 8)
+#define BIT_SEC1 (1U << 9)
+#define BIT_FUSE (1U << 10)
+#define BIT_SS (1U << 11)
+#define BIT_PF (1U << 12)
+#define BIT_SD_CMD (1U << 13)
+#define BIT_RSVD_14 (1U << 14)
+#define BIT_SLEEP (1U << 15)
+
 typedef struct {
   uint16_t cell_mv[16];
-  uint8_t device_num;
+  uint16_t device_num;
+  uint16_t battery_status;
   uint16_t pack_mv;
   uint16_t ld_mv;
   float internal_temp_c;
   int16_t cc2_current_ma;
 } bq76952_data_t;
 
+bool BQ76952_ExitConfigUpdateMode();
+bool BQ76952_EnterConfigUpdateMode();
+bool BQ76952_GetDeviceNumber(uint16_t *device_num);
+bool BQ76952_GetBatteryStatus(uint16_t *battery_status);
 bool BQ76952_GetCellVoltage(uint8_t cell, uint16_t *mv);
 bool BQ76952_GetInternalTemp(float *temp);
 bool BQ76952_Subcommand(uint16_t cmd, uint16_t data, uint8_t type,
-                        unsigned char *rx_result);
+                        unsigned char *rx_result,uint8_t rx_len);
 bool BQ76952_DirectCommand(uint16_t cmd, uint16_t data, uint8_t type,
                            unsigned char *rx_result);
+void BQ76952_init();
 void BQ76952_Loop();
 
 #ifdef __cplusplus

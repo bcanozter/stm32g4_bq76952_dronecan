@@ -1,0 +1,23 @@
+# 
+*.c     text diff=c
+*.h     text diff=c
+*.cpp   text diff=cpp
+*.hpp   text diff=cpp
+*.s     text diff=asm
+*.S     text diff=asm
+
+#
+*.c     linguist-language=C
+*.h     linguist-language=C
+*.cpp   linguist-language=C++
+*.hpp   linguist-language=C++
+
+# Docs
+*.html  linguist-documentation
+*.htm   linguist-documentation
+*.css   linguist-documentation
+*.js    linguist-documentation
+*.md    linguist-documentation
+*.txt   linguist-documentation
+*.svg  linguist-documentation
+*.png  linguist-documentation

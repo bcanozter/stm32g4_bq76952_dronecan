@@ -14,6 +14,9 @@ typedef struct {
   uint8_t iface_id;
 } CanardRxFrameObj;
 
+void canard_app_init(void);
+void canard_app_loop(void);
+
 #ifdef __cplusplus
 }
 #endif

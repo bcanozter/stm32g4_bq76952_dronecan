@@ -54,6 +54,10 @@ extern "C" {
 #define ALL_FETS_OFF 0x0095
 #define SLEEP_ENABLE 0x0099
 #define _RESET 0x0012
+
+// Data RAM
+#define REG_ENABLED_PROTECTIONS_A 0x9261
+
 //
 #define READ 0  // Read
 #define WRITE 1 // Write
@@ -94,12 +98,16 @@ bool BQ76952_GetDeviceNumber(uint16_t *device_num);
 bool BQ76952_GetBatteryStatus(uint16_t *battery_status);
 bool BQ76952_GetCellVoltage(uint8_t cell, uint16_t *mv);
 bool BQ76952_GetInternalTemp(float *temp);
+bool BQ76952_DataRAM_Read(uint16_t reg, uint8_t *data, uint8_t len);
+bool BQ76952_DataRAM_Write(uint16_t reg, const uint8_t *data, uint8_t len);
+uint8_t BQ76952_Checksum(const uint8_t *data, uint8_t len);
+uint8_t BQ76952_CRC8(const uint8_t *data, uint8_t len);
 bool BQ76952_Subcommand(uint16_t cmd, uint16_t data, uint8_t type,
-                        unsigned char *rx_result,uint8_t rx_len);
+                        unsigned char *rx_result, uint8_t rx_len);
 bool BQ76952_DirectCommand(uint16_t cmd, uint16_t data, uint8_t type,
                            unsigned char *rx_result);
 void BQ76952_init();
-void BQ76952_Loop();
+void BQ76952_loop();
 
 #ifdef __cplusplus
 }

@@ -275,7 +275,7 @@ static void task_10hz(void) {
   // TODO
 }
 
-void canard_app_loop() {
+void canard_app_loop(void) {
   handle_canard_tx_rx_queue();
 
   uint32_t now = get_uptime_ms();

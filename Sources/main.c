@@ -8,9 +8,6 @@
 #include "stm32g4xx_nucleo.h"
 #include <string.h>
 
-extern void canard_app_init(void);
-extern void canard_app_loop(void);
-
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 
@@ -27,7 +24,7 @@ int main(void) {
 
   while (1) {
 
-    BQ76952_Loop();
+    BQ76952_loop();
     canard_app_loop();
   }
 }

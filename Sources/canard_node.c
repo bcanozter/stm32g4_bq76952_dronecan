@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "bq76952_protocol.h"
 #include "canard_node.h"
 #include "dsdl/dronecan_msgs.h"
 #include "fdcan.h"
@@ -20,34 +21,37 @@
 #define APP_VERSION_MINOR 0
 #define APP_NODE_NAME "org.bco.bms"
 
+typedef enum { NODE_STATE_DNA, NODE_STATE_OPERATIONAL } node_state_t;
+
 typedef struct {
   uint32_t period_ms;
   uint32_t last_run_ms;
   void (*task)(void);
 } task_t;
 
+// Extern Definitions
+extern bq76952_data_t bq76952_data;
+
+// Prototypes
+static void task_1hz(void);
+static void task_5hz(void);
+static void task_10hz(void);
+
 static struct {
   uint32_t send_next_node_id_allocation_request_at_ms;
   uint32_t node_id_allocation_unique_id_offset;
 } DNA;
-
-typedef enum { NODE_STATE_DNA, NODE_STATE_OPERATIONAL } node_state_t;
-
-static void task_1hz(void);
-static void task_5hz(void);
-static void task_10hz(void);
 
 static task_t loop_tasks[] = {
     {1000ULL, 0, task_1hz},
     {200ULL, 0, task_5hz},
     {100ULL, 0, task_10hz},
 };
+
 static const size_t loop_task_count =
     sizeof(loop_tasks) / sizeof(loop_tasks[0]);
 
 static uint8_t canard_memory_pool[2048];
-
-CanardInstance canard;
 
 static struct uavcan_protocol_NodeStatus node_status;
 static node_state_t node_state;
@@ -57,10 +61,13 @@ static uint8_t DUMMY_HW_ID[16] = {0xDE, 0x23, 0x45, 0x67, 0x89, 0xAB,
                                   0xCD, 0xEF, 0x10, 0x32, 0x54, 0x76,
                                   0x98, 0xBA, 0xDC, 0xFE};
 
+CanardInstance canard;
+
 static void set_node_id(uint8_t id) {
   canardSetLocalNodeID(&canard, id);
   node_state = NODE_STATE_OPERATIONAL;
 }
+
 static void handle_dna_allocation(CanardInstance *ins,
                                   CanardRxTransfer *transfer) {
   if (canardGetLocalNodeID(&canard) != CANARD_BROADCAST_NODE_ID) {
@@ -186,6 +193,32 @@ static void handle_getNodeInfo(CanardInstance *ins,
       transfer->priority, CanardResponse, &buffer[0], total_size);
 }
 
+// TODO: battery info is not accurate, ensure values are valid.
+static void send_BatteryInfo(void) {
+  struct uavcan_equipment_power_BatteryInfo pkt;
+  memset(&pkt, 0, sizeof(pkt));
+  uint8_t buffer[UAVCAN_EQUIPMENT_POWER_BATTERYINFO_MAX_SIZE];
+
+  pkt.temperature = bq76952_data.internal_temp_c;
+  pkt.voltage = bq76952_data.pack_mv;
+  pkt.current = bq76952_data.cc2_current_ma;
+
+  pkt.battery_id = 69;
+  pkt.model_instance_id = 0;
+  const char *battery_name = "Ligma Co.";
+  pkt.model_name.len = strlen(battery_name);
+  strncpy((char *)pkt.model_name.data, battery_name,
+          sizeof(pkt.model_name.data));
+
+  uint32_t len = uavcan_equipment_power_BatteryInfo_encode(&pkt, buffer);
+
+  static uint8_t transfer_id;
+
+  canardBroadcast(&canard, UAVCAN_EQUIPMENT_POWER_BATTERYINFO_SIGNATURE,
+                  UAVCAN_EQUIPMENT_POWER_BATTERYINFO_ID, &transfer_id,
+                  CANARD_TRANSFER_PRIORITY_LOW, buffer, len);
+}
+
 static void broadcast_node_status(void) {
   uint8_t buffer[UAVCAN_PROTOCOL_NODESTATUS_MAX_SIZE];
   memset(buffer, 0, UAVCAN_PROTOCOL_NODESTATUS_MAX_SIZE);
@@ -252,8 +285,6 @@ static bool shouldAcceptTransfer(const CanardInstance *ins,
 }
 
 static void handle_canard_tx_rx_queue(void) {
-  canardCleanupStaleTransfers(&canard, get_uptime_ms() * 1000ULL);
-  HAL_Delay(1);
   for (CanardCANFrame *txf = NULL;
        (txf = canardPeekTxQueue(&canard)) != NULL;) {
     int32_t errCode =
@@ -265,15 +296,16 @@ static void handle_canard_tx_rx_queue(void) {
   }
 }
 
-static void task_1hz(void) { broadcast_node_status(); }
+static void task_1hz(void) {
+  canardCleanupStaleTransfers(&canard, get_uptime_ms() * 1000ULL);
+  broadcast_node_status();
+}
 
 static void task_5hz(void) {
   // TODO
 }
 
-static void task_10hz(void) {
-  // TODO
-}
+static void task_10hz(void) { send_BatteryInfo(); }
 
 void canard_app_loop(void) {
   handle_canard_tx_rx_queue();

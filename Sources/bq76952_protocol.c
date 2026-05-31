@@ -25,11 +25,14 @@ static task_t loop_tasks[] = {
     {200ULL, 0, task_5hz},
     {100ULL, 0, task_10hz},
 };
+
+// Extern Definitions
+extern I2C_HandleTypeDef hi2c1;
+
 static const size_t loop_task_count =
     sizeof(loop_tasks) / sizeof(loop_tasks[0]);
 
 bq76952_data_t bq76952_data;
-extern I2C_HandleTypeDef hi2c1;
 
 bool BQ76952_GetDeviceNumber(uint16_t *device_num) {
   uint8_t rx[2];

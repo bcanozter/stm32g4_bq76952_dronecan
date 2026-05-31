@@ -8,3 +8,4 @@
 #include "uavcan.protocol.debug.LogLevel.h"
 #include "uavcan.protocol.debug.LogMessage.h"
 #include "uavcan.protocol.dynamic_node_id.Allocation.h"
+#include "uavcan.equipment.power.BatteryInfo.h"

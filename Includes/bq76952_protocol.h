@@ -11,6 +11,8 @@ extern "C" {
 #define TI_BQ_I2C_ADDRESS (0x08 << 1)
 // Direct Commands
 #define CMD_ALARM_ENABLE 0x66
+#define CMD_ALARM_STATUS 0x62
+#define CMD_ALARM_RAW_STATUS 0x64
 #define CMD_BATTERY_STATUS 0x12
 
 // mV
@@ -26,13 +28,13 @@ extern "C" {
 #define CMD_CELL10_VOLTAGE 0x26
 #define CMD_CELL11_VOLTAGE 0x28
 #define CMD_CELL12_VOLTAGE 0x2A
-#define CMD_CELL13_VOLTAGE 0x2E
-#define CMD_CELL14_VOLTAGE 0x30
-#define CMD_CELL15_VOLTAGE 0x32
-#define CMD_CELL16_VOLTAGE 0x34
-#define CMD_STACK_VOLTAGE 0x36
-#define CMD_PACK_PIN_VOLTAGE 0x38
-#define CMD_LD_PIN_VOLTAGE 0x31
+#define CMD_CELL13_VOLTAGE 0x2C
+#define CMD_CELL14_VOLTAGE 0x2E
+#define CMD_CELL15_VOLTAGE 0x30
+#define CMD_CELL16_VOLTAGE 0x32
+#define CMD_STACK_VOLTAGE 0x34
+#define CMD_PACK_PIN_VOLTAGE 0x36
+#define CMD_LD_PIN_VOLTAGE 0x38
 
 #define CMD_CC2_CURRENT 0x3A
 
@@ -40,6 +42,22 @@ extern "C" {
 #define CMD_TS1_TEMP 0x70      // unit 0.1K
 #define CMD_TS2_TEMP 0x72      // unit 0.1K
 #define CMD_TS3_TEMP 0x74      // unit 0.1K
+
+#define CMD_FET_STATUS 0x7F
+#define CMD_SAFETY_ALERT_A 0x02
+#define CMD_SAFETY_STATUS_A 0x03
+#define CMD_SAFETY_ALERT_B 0x04
+#define CMD_SAFETY_STATUS_B 0x05
+#define CMD_SAFETY_ALERT_C 0x06
+#define CMD_SAFETY_STATUS_C 0x07
+#define CMD_PF_ALERT_A 0x0A
+#define CMD_PF_STATUS_A 0x0B
+#define CMD_PF_ALERT_B 0x0C
+#define CMD_PF_STATUS_B 0x0D
+#define CMD_PF_ALERT_C 0x0E
+#define CMD_PF_STATUS_C 0x0F
+#define CMD_PF_ALERT_D 0x10
+#define CMD_PF_STATUS_D 0x11
 
 // Subcommands
 #define SUB_CMD_DEVICE_NUM 0x0001
@@ -84,12 +102,40 @@ extern "C" {
 
 typedef struct {
   uint16_t cell_mv[16];
+  uint8_t  cell_count;
+
   uint16_t device_num;
+
   uint16_t battery_status;
-  uint16_t pack_mv;
-  uint16_t ld_mv;
+
+  uint16_t safety_alert_a;
+  uint16_t safety_alert_b;
+  uint16_t safety_alert_c;
+  uint16_t safety_status_a;
+  uint16_t safety_status_b;
+  uint16_t safety_status_c;
+
+  uint16_t pf_alert_a;
+  uint16_t pf_alert_b;
+  uint16_t pf_alert_c;
+  uint16_t pf_alert_d;
+  uint16_t pf_status_a;
+  uint16_t pf_status_b;
+  uint16_t pf_status_c;
+  uint16_t pf_status_d;
+
+  uint16_t alarm_status;
+  uint16_t fet_status;
+
+  uint16_t stack_mv;
+  uint16_t pack_pin_mv;
+  uint16_t ld_pin_mv;
+
   float internal_temp_c;
   int16_t cc2_current_ma;
+
+  bool charging;
+  bool discharging;
 } bq76952_data_t;
 
 bool BQ76952_ExitConfigUpdateMode();
@@ -98,6 +144,11 @@ bool BQ76952_GetDeviceNumber(uint16_t *device_num);
 bool BQ76952_GetBatteryStatus(uint16_t *battery_status);
 bool BQ76952_GetCellVoltage(uint8_t cell, uint16_t *mv);
 bool BQ76952_GetInternalTemp(float *temp);
+bool BQ76952_GetStackVoltage(uint16_t *mv);
+bool BQ76952_GetPackPinVoltage(uint16_t *mv);
+bool BQ76952_GetLDPinVoltage(uint16_t *mv);
+bool BQ76952_GetCC2Current(int16_t *current_ma);
+bool BQ76952_GetFETStatus(uint16_t *status);
 bool BQ76952_DataRAM_Read(uint16_t reg, uint8_t *data, uint8_t len);
 bool BQ76952_DataRAM_Write(uint16_t reg, const uint8_t *data, uint8_t len);
 uint8_t BQ76952_Checksum(const uint8_t *data, uint8_t len);
@@ -108,6 +159,10 @@ bool BQ76952_DirectCommand(uint16_t cmd, uint16_t data, uint8_t type,
                            unsigned char *rx_result);
 void BQ76952_init();
 void BQ76952_loop();
+
+//
+void ReadCellVoltages(void);
+
 
 #ifdef __cplusplus
 }

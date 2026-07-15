@@ -88,6 +88,81 @@ bool BQ76952_GetCellVoltage(uint8_t cell, uint16_t *mv) {
   return true;
 }
 
+bool BQ76952_GetStackVoltage(uint16_t *mv)
+{
+  uint8_t rx[2];
+  if (mv == NULL)
+  {
+    return false;
+  }
+  if (!BQ76952_DirectCommand(CMD_STACK_VOLTAGE, 0x00, READ, rx))
+  {
+    return false;
+  }
+  *mv = ((uint16_t)rx[1] << 8) | rx[0];
+  return true;
+}
+
+bool BQ76952_GetPackPinVoltage(uint16_t *mv)
+{
+  uint8_t rx[2];
+  if (mv == NULL)
+  {
+    return false;
+  }
+  if (!BQ76952_DirectCommand(CMD_PACK_PIN_VOLTAGE, 0x00, READ, rx))
+  {
+    return false;
+  }
+  *mv = ((uint16_t)rx[1] << 8) | rx[0];
+  return true;
+}
+
+bool BQ76952_GetLDPinVoltage(uint16_t *mv)
+{
+  uint8_t rx[2];
+  if (mv == NULL)
+  {
+    return false;
+  }
+  if (!BQ76952_DirectCommand(CMD_LD_PIN_VOLTAGE, 0x00, READ, rx))
+  {
+    return false;
+  }
+  *mv = ((uint16_t)rx[1] << 8) | rx[0];
+  return true;
+}
+
+bool BQ76952_GetCC2Current(int16_t *current_ma)
+{
+  uint8_t rx[2];
+  if (current_ma == NULL)
+  {
+    return false;
+  }
+  if (!BQ76952_DirectCommand(CMD_CC2_CURRENT, 0x00, READ, rx))
+  {
+    return false;
+  }
+  *current_ma = (int16_t)(((uint16_t)rx[1] << 8) | rx[0]);
+  return true;
+}
+
+bool BQ76952_GetFETStatus(uint16_t *status)
+{
+    uint8_t rx[2];
+    if (status == NULL)
+    {
+        return false;
+    }
+    if (!BQ76952_DirectCommand(CMD_FET_STATUS, 0x0000, READ, rx))
+    {
+        return false;
+    }
+    *status = ((uint16_t)rx[1] << 8) | rx[0];
+    return true;
+}
+
 bool BQ76952_EnterConfigUpdateMode() {
   if (!BQ76952_Subcommand(SET_CFGUPDATE, 0, WRITE, NULL, 0)) {
     return false;
@@ -110,9 +185,9 @@ bool BQ76952_Reset() {
 }
 
 void BQ76952_PrintBatteryStatus(uint16_t status) {
-  printf("Battery Status: 0x%04X\r\n", status);
+  printf("  Battery Status: 0x%04X\r\n", status);
 
-  printf("Active flags: ");
+  printf("  Active flags: ");
 
   if (status & BIT_CFGUPDATE) {
     printf("CFGUPDATE | ");
@@ -352,14 +427,101 @@ bool BQ76952_DirectCommand(uint16_t cmd, uint16_t data, uint8_t type,
   return true;
 }
 
-static void task_1hz(void) {
-  float temp = 0.0f;
-  if (BQ76952_GetInternalTemp(&temp)) {
-    bq76952_data.internal_temp_c = temp;
-    printf("Internal Temp %.2f C\r\n", bq76952_data.internal_temp_c);
+void ReadCellVoltages(void)
+{
+  int cell_count = 0;
+  for (int i = 1; i <= 16; i++)
+  {
+    uint16_t mv = 0;
+    if (BQ76952_GetCellVoltage(i, &mv))
+    {
+      bq76952_data.cell_mv[i - 1] = mv;
+      if (mv > 500U) //MAGIC NUMBER
+      {
+        cell_count++;
+      }
+      // printf("Cell[%d]: %u\r\n", i, mv);
+    }
+    else
+    {
+      bq76952_data.cell_mv[i - 1] = 0;
+    }
   }
-  BQ76952_GetBatteryStatus(&bq76952_data.battery_status);
+  bq76952_data.cell_count = cell_count;
+}
+
+static void debug_print(void)
+{
+  printf("\r\n========== BQ76952 STATUS ==========\r\n");
+
+  printf("Device Number: 0x%04X\r\n",
+         bq76952_data.device_num);
+
+  printf("\r\nCells (%u):\r\n",
+         bq76952_data.cell_count);
+  for (uint8_t i = 0; i < bq76952_data.cell_count; i++)
+  {
+    printf("  Cell %u: %u mV\r\n",
+           i + 1,
+           bq76952_data.cell_mv[i]);
+  }
+
+  printf("\r\nVoltages:\r\n");
+  printf("  Stack Voltage:    %u mV\r\n",
+         bq76952_data.stack_mv);
+  printf("  PACK Pin Voltage: %u mV\r\n",
+         bq76952_data.pack_pin_mv);
+  printf("  LD Pin Voltage:   %u mV\r\n",
+         bq76952_data.ld_pin_mv);
+
+  printf("\r\nCurrent:\r\n");
+  printf("  Current: %d mA\r\n",
+         bq76952_data.cc2_current_ma);
+
+  printf("\r\nTemperature:\r\n");
+  printf("  Internal: %.2f C\r\n",
+         bq76952_data.internal_temp_c);
+
+  printf("\r\nSafety:\r\n");
+  printf("  Status: A=0x%04X B=0x%04X C=0x%04X\r\n",
+         bq76952_data.safety_status_a,
+         bq76952_data.safety_status_b,
+         bq76952_data.safety_status_c);
+  printf("  Alert:  A=0x%04X B=0x%04X C=0x%04X\r\n",
+         bq76952_data.safety_alert_a,
+         bq76952_data.safety_alert_b,
+         bq76952_data.safety_alert_c);
+
+  printf("\r\nPermanent Fault:\r\n");
+  printf("  Status: A=0x%04X B=0x%04X C=0x%04X D=0x%04X\r\n",
+         bq76952_data.pf_status_a,
+         bq76952_data.pf_status_b,
+         bq76952_data.pf_status_c,
+         bq76952_data.pf_status_d);
+  printf("  Alert:  A=0x%04X B=0x%04X C=0x%04X D=0x%04X\r\n",
+         bq76952_data.pf_alert_a,
+         bq76952_data.pf_alert_b,
+         bq76952_data.pf_alert_c,
+         bq76952_data.pf_alert_d);
+         
+  printf("\r\nStatus Registers:\r\n");
   BQ76952_PrintBatteryStatus(bq76952_data.battery_status);
+  printf("  Alarm Status:      0x%04X\r\n",
+         bq76952_data.alarm_status);
+  printf("  FET Status:        0x%04X\r\n",
+         bq76952_data.fet_status);
+
+  printf("\r\nBattery State:\r\n");
+  printf("  Charging:     %s\r\n",
+         bq76952_data.charging ? "YES" : "NO");
+  printf("  Discharging:  %s\r\n",
+         bq76952_data.discharging ? "YES" : "NO");
+  printf("====================================\r\n");
+}
+
+static void task_1hz(void) {
+  //TODO
+  debug_print();
 }
 
 static void task_5hz(void) {
@@ -367,13 +529,14 @@ static void task_5hz(void) {
 }
 
 static void task_10hz(void) {
-  for (int i = 1; i <= 16; i++) {
-    uint16_t mv = 0;
-    if (BQ76952_GetCellVoltage(i, &mv)) {
-      bq76952_data.cell_mv[i - 1] = mv;
-      // printf("Cell[%d]: %u\r\n", i, mv);
-    }
-  }
+  ReadCellVoltages();
+  BQ76952_GetStackVoltage(&bq76952_data.stack_mv);
+  BQ76952_GetPackPinVoltage(&bq76952_data.pack_pin_mv);
+  BQ76952_GetLDPinVoltage(&bq76952_data.ld_pin_mv);
+  BQ76952_GetCC2Current(&bq76952_data.cc2_current_ma);
+  BQ76952_GetFETStatus(&bq76952_data.fet_status);
+  BQ76952_GetBatteryStatus(&bq76952_data.battery_status);
+  BQ76952_GetInternalTemp(&bq76952_data.internal_temp_c);
 }
 
 void BQ76952_init() {

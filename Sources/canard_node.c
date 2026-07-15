@@ -200,7 +200,7 @@ static void send_BatteryInfo(void) {
   uint8_t buffer[UAVCAN_EQUIPMENT_POWER_BATTERYINFO_MAX_SIZE];
 
   pkt.temperature = bq76952_data.internal_temp_c;
-  pkt.voltage = bq76952_data.pack_mv;
+  pkt.voltage = bq76952_data.pack_pin_mv;
   pkt.current = bq76952_data.cc2_current_ma;
 
   pkt.battery_id = 69;

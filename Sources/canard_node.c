@@ -194,14 +194,22 @@ static void handle_getNodeInfo(CanardInstance *ins,
 }
 
 // TODO: battery info is not accurate, ensure values are valid.
+// https://legacy.uavcan.org/Specification/7._List_of_standard_data_types/#batteryinfo
 static void send_BatteryInfo(void) {
   struct uavcan_equipment_power_BatteryInfo pkt;
   memset(&pkt, 0, sizeof(pkt));
   uint8_t buffer[UAVCAN_EQUIPMENT_POWER_BATTERYINFO_MAX_SIZE];
 
-  pkt.temperature = bq76952_data.internal_temp_c;
-  pkt.voltage = bq76952_data.pack_pin_mv;
-  pkt.current = bq76952_data.cc2_current_ma;
+  pkt.temperature = bq76952_data.internal_temp_c + 273.15f; // Kelvin
+  pkt.voltage = bq76952_data.pack_pin_mv / 1000.0f; // Volt
+  pkt.current = bq76952_data.cc2_current_ma / 1000.0f; // Ampere
+
+  //This needs a proper mapping. OK for now.
+  if (bq76952_data.charge_state == BQ_CHARGE_STATE_CHARGING) {
+    pkt.status_flags |= UAVCAN_EQUIPMENT_POWER_BATTERYINFO_STATUS_FLAG_CHARGING;
+  } else if (bq76952_data.charge_state == BQ_CHARGE_STATE_DISCHARGING) {
+    pkt.status_flags |= UAVCAN_EQUIPMENT_POWER_BATTERYINFO_STATUS_FLAG_IN_USE;
+  }
 
   pkt.battery_id = 69;
   pkt.model_instance_id = 0;

@@ -100,6 +100,19 @@ extern "C" {
 #define BIT_RSVD_14 (1U << 14)
 #define BIT_SLEEP (1U << 15)
 
+// end of api macros
+
+#define BQ_CHARGE_CURRENT_THRESHOLD_MA 200
+#define BQ_DISCHARGE_CURRENT_THRESHOLD_MA 200
+#define BQ_CHARGE_STATE_HYSTERESIS_MA 100
+typedef enum {
+  BQ_CHARGE_STATE_IDLE = 0,
+  BQ_CHARGE_STATE_CHARGING,
+  BQ_CHARGE_STATE_DISCHARGING,
+} bq76952_charge_state_t;
+
+
+
 typedef struct {
   uint16_t cell_mv[16];
   uint8_t  cell_count;
@@ -134,8 +147,7 @@ typedef struct {
   float internal_temp_c;
   int16_t cc2_current_ma;
 
-  bool charging;
-  bool discharging;
+  bq76952_charge_state_t charge_state;
 } bq76952_data_t;
 
 bool BQ76952_ExitConfigUpdateMode();
@@ -149,6 +161,8 @@ bool BQ76952_GetPackPinVoltage(uint16_t *mv);
 bool BQ76952_GetLDPinVoltage(uint16_t *mv);
 bool BQ76952_GetCC2Current(int16_t *current_ma);
 bool BQ76952_GetFETStatus(uint16_t *status);
+
+
 bool BQ76952_DataRAM_Read(uint16_t reg, uint8_t *data, uint8_t len);
 bool BQ76952_DataRAM_Write(uint16_t reg, const uint8_t *data, uint8_t len);
 uint8_t BQ76952_Checksum(const uint8_t *data, uint8_t len);
@@ -162,6 +176,9 @@ void BQ76952_loop();
 
 //
 void ReadCellVoltages(void);
+bq76952_charge_state_t BQ76952_DetectChargeState(int16_t current_ma,
+  bq76952_charge_state_t prev_state);
+void BQ76952_UpdateChargeState(void);
 
 
 #ifdef __cplusplus

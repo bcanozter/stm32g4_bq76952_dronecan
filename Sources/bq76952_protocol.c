@@ -163,6 +163,32 @@ bool BQ76952_GetFETStatus(uint16_t *status)
     return true;
 }
 
+//not tested
+bq76952_charge_state_t BQ76952_DetectChargeState(int16_t current_ma,
+                                                    bq76952_charge_state_t prev_state) {
+  if (current_ma >= BQ_CHARGE_CURRENT_THRESHOLD_MA) {
+    return BQ_CHARGE_STATE_CHARGING;
+  }
+  if (current_ma <= -BQ_DISCHARGE_CURRENT_THRESHOLD_MA) {
+    return BQ_CHARGE_STATE_DISCHARGING;
+  }
+  //dead zone
+  if (prev_state == BQ_CHARGE_STATE_CHARGING &&
+      current_ma > BQ_CHARGE_CURRENT_THRESHOLD_MA - BQ_CHARGE_STATE_HYSTERESIS_MA) {
+    return BQ_CHARGE_STATE_CHARGING;
+  }
+  if (prev_state == BQ_CHARGE_STATE_DISCHARGING &&
+      current_ma < -(BQ_DISCHARGE_CURRENT_THRESHOLD_MA - BQ_CHARGE_STATE_HYSTERESIS_MA)) {
+    return BQ_CHARGE_STATE_DISCHARGING;
+  }
+  return BQ_CHARGE_STATE_IDLE;
+}
+
+void BQ76952_UpdateChargeState(void) {
+  bq76952_data.charge_state = BQ76952_DetectChargeState(
+      bq76952_data.cc2_current_ma, bq76952_data.charge_state);
+}
+
 bool BQ76952_EnterConfigUpdateMode() {
   if (!BQ76952_Subcommand(SET_CFGUPDATE, 0, WRITE, NULL, 0)) {
     return false;
@@ -511,11 +537,10 @@ static void debug_print(void)
   printf("  FET Status:        0x%04X\r\n",
          bq76952_data.fet_status);
 
+  static const char *charge_state_str[] = {"IDLE", "CHARGING", "DISCHARGING"};
   printf("\r\nBattery State:\r\n");
-  printf("  Charging:     %s\r\n",
-         bq76952_data.charging ? "YES" : "NO");
-  printf("  Discharging:  %s\r\n",
-         bq76952_data.discharging ? "YES" : "NO");
+  printf("  State: %s\r\n",
+         charge_state_str[bq76952_data.charge_state]);
   printf("====================================\r\n");
 }
 
@@ -537,6 +562,8 @@ static void task_10hz(void) {
   BQ76952_GetFETStatus(&bq76952_data.fet_status);
   BQ76952_GetBatteryStatus(&bq76952_data.battery_status);
   BQ76952_GetInternalTemp(&bq76952_data.internal_temp_c);
+
+  BQ76952_UpdateChargeState();
 }
 
 void BQ76952_init() {

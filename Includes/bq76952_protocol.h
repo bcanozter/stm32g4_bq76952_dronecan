@@ -64,17 +64,52 @@ extern "C" {
 #define SUB_CMD_MANUFACTURING_STATUS 0x0057
 #define SUB_CMD_FET_ENABLE 0x0022
 #define SUB_CMD_RESET 0x0012
+#define SUB_CMD_FET_CONTROL 0x0097
 
 // Command Subcommand
 #define SET_CFGUPDATE 0x0090
 #define EXIT_CFGUPDATE 0x0092
 #define FET_ENABLE 0x0022
 #define ALL_FETS_OFF 0x0095
+#define ALL_FETS_ON 0x0096
 #define SLEEP_ENABLE 0x0099
 #define _RESET 0x0012
 
-// Data RAM
+// 5.2.3.2 FET Control
+#define PDSGTEST 0x001C
+#define PCHGTEST 0x001E
+#define CHGTEST 0x001F
+#define DSGTEST 0x0020
+#define PF_ENABLE 0x0024
+
+// Rest of the FET Control Register bits are reserved.
+#define BIT_FET_CONTROL_DSG_OFF (1U << 0)
+#define BIT_FET_CONTROL_PDSG_OFF (1U << 1)
+#define BIT_FET_CONTROL_CHG_OFF (1U << 2)
+#define BIT_FET_CONTROL_PCHG_OFF (1U << 3)
+
+// Manufacturing Status Register (12.5.5).
+#define BIT_MFG_STATUS_PCHG_TEST (1U << 0)
+#define BIT_MFG_STATUS_CHG_TEST (1U << 1)
+#define BIT_MFG_STATUS_DSG_TEST (1U << 2)
+#define BIT_MFG_STATUS_FET_EN (1U << 4)
+#define BIT_MFG_STATUS_PDSG_TEST (1U << 5)
+#define BIT_MFG_STATUS_PF_EN (1U << 6)
+#define BIT_MFG_STATUS_OTPW_EN (1U << 7)
+
+// Settings
+#define REG_VCELL_MODE 0x9304
 #define REG_ENABLED_PROTECTIONS_A 0x9261
+#define REG_ENABLED_PROTECTIONS_B 0x9262
+#define REG_ENABLED_PROTECTIONS_C 0x9263
+
+// 16S cell simulator -> all 16 cell positions active.
+// Table 13-16 in the technical manual explains the register fields.
+#define VCELL_MODE_16S 0xFFFF
+
+// Enabled Protections A: factory default
+#define ENABLED_PROTECTIONS_A_VALUE 0x8C
+#define ENABLED_PROTECTIONS_B_VALUE 0x77
 
 //
 #define READ 0  // Read
@@ -147,6 +182,7 @@ typedef struct {
   float internal_temp_c;
   int16_t cc2_current_ma;
 
+  uint16_t manufacturing_status;
   bq76952_charge_state_t charge_state;
 } bq76952_data_t;
 
@@ -162,15 +198,43 @@ bool BQ76952_GetLDPinVoltage(uint16_t *mv);
 bool BQ76952_GetCC2Current(int16_t *current_ma);
 bool BQ76952_GetFETStatus(uint16_t *status);
 
+bool BQ76952_GetSafetyAlertA(uint16_t *status);
+bool BQ76952_GetSafetyStatusA(uint16_t *status);
+bool BQ76952_GetSafetyAlertB(uint16_t *status);
+bool BQ76952_GetSafetyStatusB(uint16_t *status);
+bool BQ76952_GetSafetyAlertC(uint16_t *status);
+bool BQ76952_GetSafetyStatusC(uint16_t *status);
+
+bool BQ76952_GetPFAlertA(uint16_t *status);
+bool BQ76952_GetPFStatusA(uint16_t *status);
+bool BQ76952_GetPFAlertB(uint16_t *status);
+bool BQ76952_GetPFStatusB(uint16_t *status);
+bool BQ76952_GetPFAlertC(uint16_t *status);
+bool BQ76952_GetPFStatusC(uint16_t *status);
+bool BQ76952_GetPFAlertD(uint16_t *status);
+bool BQ76952_GetPFStatusD(uint16_t *status);
+
+bool BQ76952_GetAlarmStatus(uint16_t *status);
+
+bool BQ76952_AllFETsOff(void);
+bool BQ76952_AllFETsOn(void);
+bool BQ76952_SetFETControl(uint8_t fet_control_bits);
+bool BQ76952_TestFETControl(void);
+bool BQ76952_GetManufacturingStatus(uint16_t *status);
+bool BQ76952_SetManufacturingStatusBit(uint16_t bit_mask, bool desired_state);
+void BQ76952_PrintManufacturingStatus(uint16_t status);
+void BQ76952_PrintBatteryStatus(uint16_t status);
+
 
 bool BQ76952_DataRAM_Read(uint16_t reg, uint8_t *data, uint8_t len);
 bool BQ76952_DataRAM_Write(uint16_t reg, const uint8_t *data, uint8_t len);
+bool BQ76952_ConfigureProtections(void);
 uint8_t BQ76952_Checksum(const uint8_t *data, uint8_t len);
 uint8_t BQ76952_CRC8(const uint8_t *data, uint8_t len);
 bool BQ76952_Subcommand(uint16_t cmd, uint16_t data, uint8_t type,
                         unsigned char *rx_result, uint8_t rx_len);
 bool BQ76952_DirectCommand(uint16_t cmd, uint16_t data, uint8_t type,
-                           unsigned char *rx_result);
+                           unsigned char *rx_result, uint8_t len);
 void BQ76952_init();
 void BQ76952_loop();
 

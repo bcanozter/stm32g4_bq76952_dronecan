@@ -227,11 +227,16 @@ static void send_BatteryInfo(void) {
                   CANARD_TRANSFER_PRIORITY_LOW, buffer, len);
 }
 
+static uint8_t get_battery_health(void) {
+  // TODO: check alarm status, safety status,and stored permanent faults.
+  return UAVCAN_PROTOCOL_NODESTATUS_HEALTH_OK;
+}
+
 static void broadcast_node_status(void) {
   uint8_t buffer[UAVCAN_PROTOCOL_NODESTATUS_MAX_SIZE];
   memset(buffer, 0, UAVCAN_PROTOCOL_NODESTATUS_MAX_SIZE);
   node_status.uptime_sec = get_uptime_sec();
-  node_status.health = UAVCAN_PROTOCOL_NODESTATUS_HEALTH_OK;
+  node_status.health = get_battery_health();
   node_status.mode = UAVCAN_PROTOCOL_NODESTATUS_MODE_OPERATIONAL;
   node_status.sub_mode = 0;
   node_status.vendor_specific_status_code = 0;

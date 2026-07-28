@@ -46,12 +46,25 @@ bool BQ76952_GetDeviceNumber(uint16_t *device_num) {
   return true;
 }
 
+bool BQ76952_GetManufacturingStatus(uint16_t *status) {
+  uint8_t rx[2];
+  if (status == NULL) {
+    return false;
+  }
+  if (!BQ76952_Subcommand(SUB_CMD_MANUFACTURING_STATUS, 0x00, READ, rx,
+                          sizeof(rx))) {
+    return false;
+  }
+  *status = ((uint16_t)rx[1]) << 8 | rx[0];
+  return true;
+}
+
 bool BQ76952_GetBatteryStatus(uint16_t *battery_status) {
   uint8_t rx[2] = {0x00};
   if (battery_status == NULL) {
     return false;
   }
-  if (!BQ76952_DirectCommand(CMD_BATTERY_STATUS, 0x00, READ, rx)) {
+  if (!BQ76952_DirectCommand(CMD_BATTERY_STATUS, 0x00, READ, rx, sizeof(rx))) {
     return false;
   }
   *battery_status = (rx[1] << 8) | rx[0];
@@ -63,7 +76,7 @@ bool BQ76952_GetInternalTemp(float *temp) {
     return false;
   }
   unsigned char rx[2] = {0x00};
-  if (!BQ76952_DirectCommand(CMD_INTERNAL_TEMP, 0x00, READ, rx)) {
+  if (!BQ76952_DirectCommand(CMD_INTERNAL_TEMP, 0x00, READ, rx, sizeof(rx))) {
     return false;
   }
   uint16_t temp_raw = (rx[1] << 8) | rx[0];
@@ -80,7 +93,7 @@ bool BQ76952_GetCellVoltage(uint8_t cell, uint16_t *mv) {
   }
   uint8_t rx[2];
   uint8_t reg = CMD_CELL1_VOLTAGE + ((cell - 1) * 2);
-  if (!BQ76952_DirectCommand(reg, 0x00, READ, rx)) {
+  if (!BQ76952_DirectCommand(reg, 0x00, READ, rx, sizeof(rx))) {
     return false;
   }
   *mv = ((uint16_t)rx[1] << 8) | rx[0];
@@ -95,7 +108,7 @@ bool BQ76952_GetStackVoltage(uint16_t *mv)
   {
     return false;
   }
-  if (!BQ76952_DirectCommand(CMD_STACK_VOLTAGE, 0x00, READ, rx))
+  if (!BQ76952_DirectCommand(CMD_STACK_VOLTAGE, 0x00, READ, rx, sizeof(rx)))
   {
     return false;
   }
@@ -110,7 +123,7 @@ bool BQ76952_GetPackPinVoltage(uint16_t *mv)
   {
     return false;
   }
-  if (!BQ76952_DirectCommand(CMD_PACK_PIN_VOLTAGE, 0x00, READ, rx))
+  if (!BQ76952_DirectCommand(CMD_PACK_PIN_VOLTAGE, 0x00, READ, rx, sizeof(rx)))
   {
     return false;
   }
@@ -125,7 +138,7 @@ bool BQ76952_GetLDPinVoltage(uint16_t *mv)
   {
     return false;
   }
-  if (!BQ76952_DirectCommand(CMD_LD_PIN_VOLTAGE, 0x00, READ, rx))
+  if (!BQ76952_DirectCommand(CMD_LD_PIN_VOLTAGE, 0x00, READ, rx, sizeof(rx)))
   {
     return false;
   }
@@ -140,7 +153,7 @@ bool BQ76952_GetCC2Current(int16_t *current_ma)
   {
     return false;
   }
-  if (!BQ76952_DirectCommand(CMD_CC2_CURRENT, 0x00, READ, rx))
+  if (!BQ76952_DirectCommand(CMD_CC2_CURRENT, 0x00, READ, rx, sizeof(rx)))
   {
     return false;
   }
@@ -150,17 +163,273 @@ bool BQ76952_GetCC2Current(int16_t *current_ma)
 
 bool BQ76952_GetFETStatus(uint16_t *status)
 {
-    uint8_t rx[2];
+    uint8_t rx[1];
     if (status == NULL)
     {
         return false;
     }
-    if (!BQ76952_DirectCommand(CMD_FET_STATUS, 0x0000, READ, rx))
+    if (!BQ76952_DirectCommand(CMD_FET_STATUS, 0x0000, READ, rx, sizeof(rx)))
     {
         return false;
     }
-    *status = ((uint16_t)rx[1] << 8) | rx[0];
+    *status = rx[0];
     return true;
+}
+
+bool BQ76952_SetManufacturingStatusBit(uint16_t bit_mask, bool desired_state) {
+  uint16_t toggle_subcommand;
+
+  switch (bit_mask) {
+  case BIT_MFG_STATUS_FET_EN:
+    toggle_subcommand = FET_ENABLE;
+    break;
+  case BIT_MFG_STATUS_PF_EN:
+    toggle_subcommand = PF_ENABLE;
+    break;
+  case BIT_MFG_STATUS_PDSG_TEST:
+    toggle_subcommand = PDSGTEST;
+    break;
+  case BIT_MFG_STATUS_PCHG_TEST:
+    toggle_subcommand = PCHGTEST;
+    break;
+  case BIT_MFG_STATUS_CHG_TEST:
+    toggle_subcommand = CHGTEST;
+    break;
+  case BIT_MFG_STATUS_DSG_TEST:
+    toggle_subcommand = DSGTEST;
+    break;
+  default:
+    return false;
+  }
+
+  uint16_t status;
+  if (!BQ76952_GetManufacturingStatus(&status)) {
+    return false;
+  }
+
+  bool current_state = (status & bit_mask) != 0;
+  if (current_state == desired_state) {
+    return true;
+  }
+
+  return BQ76952_Subcommand(toggle_subcommand, 0, WRITE, NULL, 0);
+}
+
+bool BQ76952_AllFETsOff(void) {
+  return BQ76952_Subcommand(ALL_FETS_OFF, 0, WRITE, NULL, 0);
+}
+
+bool BQ76952_AllFETsOn(void) {
+  return BQ76952_Subcommand(ALL_FETS_ON, 0, WRITE, NULL, 0);
+}
+
+bool BQ76952_SetFETControl(uint8_t fet_control_bits) {
+  return BQ76952_DataRAM_Write(SUB_CMD_FET_CONTROL, &fet_control_bits, 1);
+}
+
+bool BQ76952_TestFETControl(void) {
+  uint16_t status;
+
+  BQ76952_GetFETStatus(&status);
+  printf("FET Status before = 0x%04X\r\n", status);
+
+  if (!BQ76952_AllFETsOff()) {
+    printf("AllFETsOff failed\r\n");
+    return false;
+  }
+  HAL_Delay(250);
+  BQ76952_GetFETStatus(&status);
+  printf("FET Status after AllFETsOff = 0x%04X\r\n", status);
+
+  if (!BQ76952_AllFETsOn()) {
+    printf("AllFETsOn failed\r\n");
+    return false;
+  }
+  HAL_Delay(250);
+  BQ76952_GetFETStatus(&status);
+  printf("FET Status after AllFETsOn = 0x%04X\r\n", status);
+
+  return true;
+}
+
+bool BQ76952_GetSafetyAlertA(uint16_t *status) {
+  uint8_t rx[1];
+  if (status == NULL) {
+    return false;
+  }
+  if (!BQ76952_DirectCommand(CMD_SAFETY_ALERT_A, 0x00, READ, rx, sizeof(rx))) {
+    return false;
+  }
+  *status = rx[0];
+  return true;
+}
+
+bool BQ76952_GetSafetyStatusA(uint16_t *status) {
+  uint8_t rx[1];
+  if (status == NULL) {
+    return false;
+  }
+  if (!BQ76952_DirectCommand(CMD_SAFETY_STATUS_A, 0x00, READ, rx, sizeof(rx))) {
+    return false;
+  }
+  *status = rx[0];
+  return true;
+}
+
+bool BQ76952_GetSafetyAlertB(uint16_t *status) {
+  uint8_t rx[1];
+  if (status == NULL) {
+    return false;
+  }
+  if (!BQ76952_DirectCommand(CMD_SAFETY_ALERT_B, 0x00, READ, rx, sizeof(rx))) {
+    return false;
+  }
+  *status = rx[0];
+  return true;
+}
+
+bool BQ76952_GetSafetyStatusB(uint16_t *status) {
+  uint8_t rx[1];
+  if (status == NULL) {
+    return false;
+  }
+  if (!BQ76952_DirectCommand(CMD_SAFETY_STATUS_B, 0x00, READ, rx, sizeof(rx))) {
+    return false;
+  }
+  *status = rx[0];
+  return true;
+}
+
+bool BQ76952_GetSafetyAlertC(uint16_t *status) {
+  uint8_t rx[1];
+  if (status == NULL) {
+    return false;
+  }
+  if (!BQ76952_DirectCommand(CMD_SAFETY_ALERT_C, 0x00, READ, rx, sizeof(rx))) {
+    return false;
+  }
+  *status = rx[0];
+  return true;
+}
+
+bool BQ76952_GetSafetyStatusC(uint16_t *status) {
+  uint8_t rx[1];
+  if (status == NULL) {
+    return false;
+  }
+  if (!BQ76952_DirectCommand(CMD_SAFETY_STATUS_C, 0x00, READ, rx, sizeof(rx))) {
+    return false;
+  }
+  *status = rx[0];
+  return true;
+}
+
+bool BQ76952_GetPFAlertA(uint16_t *status) {
+  uint8_t rx[1];
+  if (status == NULL) {
+    return false;
+  }
+  if (!BQ76952_DirectCommand(CMD_PF_ALERT_A, 0x00, READ, rx, sizeof(rx))) {
+    return false;
+  }
+  *status = rx[0];
+  return true;
+}
+
+bool BQ76952_GetPFStatusA(uint16_t *status) {
+  uint8_t rx[1];
+  if (status == NULL) {
+    return false;
+  }
+  if (!BQ76952_DirectCommand(CMD_PF_STATUS_A, 0x00, READ, rx, sizeof(rx))) {
+    return false;
+  }
+  *status = rx[0];
+  return true;
+}
+
+bool BQ76952_GetPFAlertB(uint16_t *status) {
+  uint8_t rx[1];
+  if (status == NULL) {
+    return false;
+  }
+  if (!BQ76952_DirectCommand(CMD_PF_ALERT_B, 0x00, READ, rx, sizeof(rx))) {
+    return false;
+  }
+  *status = rx[0];
+  return true;
+}
+
+bool BQ76952_GetPFStatusB(uint16_t *status) {
+  uint8_t rx[1];
+  if (status == NULL) {
+    return false;
+  }
+  if (!BQ76952_DirectCommand(CMD_PF_STATUS_B, 0x00, READ, rx, sizeof(rx))) {
+    return false;
+  }
+  *status = rx[0];
+  return true;
+}
+
+bool BQ76952_GetPFAlertC(uint16_t *status) {
+  uint8_t rx[1];
+  if (status == NULL) {
+    return false;
+  }
+  if (!BQ76952_DirectCommand(CMD_PF_ALERT_C, 0x00, READ, rx, sizeof(rx))) {
+    return false;
+  }
+  *status = rx[0];
+  return true;
+}
+
+bool BQ76952_GetPFStatusC(uint16_t *status) {
+  uint8_t rx[1];
+  if (status == NULL) {
+    return false;
+  }
+  if (!BQ76952_DirectCommand(CMD_PF_STATUS_C, 0x00, READ, rx, sizeof(rx))) {
+    return false;
+  }
+  *status = rx[0];
+  return true;
+}
+
+bool BQ76952_GetPFAlertD(uint16_t *status) {
+  uint8_t rx[1];
+  if (status == NULL) {
+    return false;
+  }
+  if (!BQ76952_DirectCommand(CMD_PF_ALERT_D, 0x00, READ, rx, sizeof(rx))) {
+    return false;
+  }
+  *status = rx[0];
+  return true;
+}
+
+bool BQ76952_GetPFStatusD(uint16_t *status) {
+  uint8_t rx[1];
+  if (status == NULL) {
+    return false;
+  }
+  if (!BQ76952_DirectCommand(CMD_PF_STATUS_D, 0x00, READ, rx, sizeof(rx))) {
+    return false;
+  }
+  *status = rx[0];
+  return true;
+}
+
+bool BQ76952_GetAlarmStatus(uint16_t *status) {
+  uint8_t rx[2];
+  if (status == NULL) {
+    return false;
+  }
+  if (!BQ76952_DirectCommand(CMD_ALARM_STATUS, 0x00, READ, rx, sizeof(rx))) {
+    return false;
+  }
+  *status = ((uint16_t)rx[1] << 8) | rx[0];
+  return true;
 }
 
 //not tested
@@ -263,6 +532,36 @@ void BQ76952_PrintBatteryStatus(uint16_t status) {
   }
   if (status & BIT_SLEEP) {
     printf("SLEEP ");
+  }
+
+  printf("\r\n");
+}
+
+void BQ76952_PrintManufacturingStatus(uint16_t status) {
+  printf("  Manufacturing Status: 0x%04X\r\n", status);
+
+  printf("  Active flags: ");
+
+  if (status & BIT_MFG_STATUS_PCHG_TEST) {
+    printf("PCHG_TEST | ");
+  }
+  if (status & BIT_MFG_STATUS_CHG_TEST) {
+    printf("CHG_TEST | ");
+  }
+  if (status & BIT_MFG_STATUS_DSG_TEST) {
+    printf("DSG_TEST | ");
+  }
+  if (status & BIT_MFG_STATUS_FET_EN) {
+    printf("FET_EN | ");
+  }
+  if (status & BIT_MFG_STATUS_PDSG_TEST) {
+    printf("PDSG_TEST | ");
+  }
+  if (status & BIT_MFG_STATUS_PF_EN) {
+    printf("PF_EN | ");
+  }
+  if (status & BIT_MFG_STATUS_OTPW_EN) {
+    printf("OTPW_EN ");
   }
 
   printf("\r\n");
@@ -398,6 +697,33 @@ bool BQ76952_TestRAMWrite(void) {
   return true;
 }
 
+bool BQ76952_ConfigureProtections(void) {
+  uint8_t vcell_mode[2] = {VCELL_MODE_16S & 0xFF, (VCELL_MODE_16S >> 8) & 0xFF};
+  // TODO: protections to be enabled, protections C?
+  uint8_t protections_a = ENABLED_PROTECTIONS_A_VALUE;
+  uint8_t protections_b = ENABLED_PROTECTIONS_B_VALUE;
+
+  if (!BQ76952_DataRAM_Write(REG_VCELL_MODE, vcell_mode, sizeof(vcell_mode))) {
+    printf("Vcell Mode write failed\r\n");
+    return false;
+  }
+  HAL_Delay(2);
+
+  if (!BQ76952_DataRAM_Write(REG_ENABLED_PROTECTIONS_A, &protections_a, 1)) {
+    printf("Enabled Protections A write failed\r\n");
+    return false;
+  }
+  HAL_Delay(2);
+
+  if (!BQ76952_DataRAM_Write(REG_ENABLED_PROTECTIONS_B, &protections_b, 1)) {
+    printf("Enabled Protections B write failed\r\n");
+    return false;
+  }
+  HAL_Delay(2);
+
+  return true;
+}
+
 bool BQ76952_Subcommand(uint16_t cmd, uint16_t data, uint8_t type,
                         unsigned char *rx_result, uint8_t rx_len) {
   uint8_t TX_Reg[4] = {0x00, 0x00, 0x00, 0x00};
@@ -430,7 +756,7 @@ bool BQ76952_Subcommand(uint16_t cmd, uint16_t data, uint8_t type,
 }
 
 bool BQ76952_DirectCommand(uint16_t cmd, uint16_t data, uint8_t type,
-                           unsigned char *rx_result) {
+                           unsigned char *rx_result, uint8_t len) {
   uint8_t TX_data[2] = {0x00, 0x00};
 
   // little endian format
@@ -438,11 +764,14 @@ bool BQ76952_DirectCommand(uint16_t cmd, uint16_t data, uint8_t type,
   TX_data[1] = (data >> 8) & 0xff;
   unsigned char RX_data[2] = {0x00};
   if (type == READ) { // Read
-    if (!I2C_Read(cmd, RX_data, 2, I2C_READ_TIMEOUT_MS)) {
+    if (len == 0 || len > sizeof(RX_data)) {
+      return false;
+    }
+    if (!I2C_Read(cmd, RX_data, len, I2C_READ_TIMEOUT_MS)) {
       return false;
     }
     if (rx_result != NULL) {
-      memcpy(rx_result, RX_data, sizeof(RX_data));
+      memcpy(rx_result, RX_data, len);
     }
   }
   if (type == WRITE) {
@@ -483,6 +812,8 @@ static void debug_print(void)
   printf("Device Number: 0x%04X\r\n",
          bq76952_data.device_num);
 
+  BQ76952_PrintManufacturingStatus(bq76952_data.manufacturing_status);
+  
   printf("\r\nCells (%u):\r\n",
          bq76952_data.cell_count);
   for (uint8_t i = 0; i < bq76952_data.cell_count; i++)
@@ -550,7 +881,23 @@ static void task_1hz(void) {
 }
 
 static void task_5hz(void) {
-  // TODO
+  BQ76952_GetSafetyAlertA(&bq76952_data.safety_alert_a);
+  BQ76952_GetSafetyStatusA(&bq76952_data.safety_status_a);
+  BQ76952_GetSafetyAlertB(&bq76952_data.safety_alert_b);
+  BQ76952_GetSafetyStatusB(&bq76952_data.safety_status_b);
+  BQ76952_GetSafetyAlertC(&bq76952_data.safety_alert_c);
+  BQ76952_GetSafetyStatusC(&bq76952_data.safety_status_c);
+
+  BQ76952_GetPFAlertA(&bq76952_data.pf_alert_a);
+  BQ76952_GetPFStatusA(&bq76952_data.pf_status_a);
+  BQ76952_GetPFAlertB(&bq76952_data.pf_alert_b);
+  BQ76952_GetPFStatusB(&bq76952_data.pf_status_b);
+  BQ76952_GetPFAlertC(&bq76952_data.pf_alert_c);
+  BQ76952_GetPFStatusC(&bq76952_data.pf_status_c);
+  BQ76952_GetPFAlertD(&bq76952_data.pf_alert_d);
+  BQ76952_GetPFStatusD(&bq76952_data.pf_status_d);
+
+  BQ76952_GetAlarmStatus(&bq76952_data.alarm_status);
 }
 
 static void task_10hz(void) {
@@ -573,6 +920,10 @@ void BQ76952_init() {
     return;
   }
   printf("Device Number 0x%04x\r\n", bq76952_data.device_num);
+
+  // Factory default FET_EN is 0.
+  BQ76952_SetManufacturingStatusBit(BIT_MFG_STATUS_FET_EN, true);
+  BQ76952_GetManufacturingStatus(&bq76952_data.manufacturing_status);
   /*
   NOTE:
   When writing to RAM registers, it is highly recommended to first enter
@@ -593,6 +944,8 @@ void BQ76952_init() {
   // BQ76952_Reset();
   BQ76952_TestRAMRead();
   BQ76952_TestRAMWrite();
+  // Protections disabled for cell simulator.
+  // BQ76952_ConfigureProtections()
   while (1) {
     BQ76952_ExitConfigUpdateMode();
     HAL_Delay(2);
@@ -603,6 +956,7 @@ void BQ76952_init() {
     }
     HAL_Delay(10);
   }
+  BQ76952_TestFETControl();
 }
 
 void BQ76952_loop() {
